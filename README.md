@@ -18,6 +18,24 @@
 
    streamlit run app.py
 
+## Setup (Windows)
+
+1. Buat virtual environment:
+
+   py -m venv .venv
+
+2. Aktifkan virtual environment:
+
+   .venv\Scripts\activate
+
+3. Install dependencies:
+
+   python -m pip install -r requirements.txt
+
+4. Jalankan app:
+
+   streamlit run app.py
+
 ## Catatan
 
 - Jika perintah `pip` tidak dikenali, gunakan `python -m pip` atau `python3 -m pip`.
