@@ -3,6 +3,7 @@ import mimetypes
 import os
 import socket
 import uuid
+from html import escape
 from datetime import datetime
 from typing import Optional
 from urllib import error, request
@@ -165,6 +166,31 @@ def render_styles() -> None:
             margin: 0;
             line-height: 1.5;
             color: var(--text-main);
+        }
+
+        .user-message-files {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.4rem;
+            margin-top: 0.65rem;
+        }
+
+        .user-message-file-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            padding: 0.35rem 0.65rem;
+            border-radius: 999px;
+            border: 1px solid var(--panel-border);
+            background: rgba(15, 23, 42, 0.65);
+            color: var(--text-muted);
+            font-size: 0.78rem;
+            line-height: 1;
+        }
+
+        .user-message-file-icon {
+            color: var(--text-soft);
+            font-size: 0.8rem;
         }
 
         [data-testid="stChatMessage"] {
@@ -339,6 +365,26 @@ def build_multipart_body(fields: dict[str, str], file_field: Optional[tuple[str,
     return b"".join(parts), f"multipart/form-data; boundary={boundary}"
 
 
+def render_user_bubble(question: str, persona: str, file_names: Optional[list[str]] = None) -> None:
+    with st.chat_message("user"):
+        st.caption(persona)
+        st.write(question)
+
+        if file_names:
+            chips = []
+            for file_name in file_names:
+                chips.append(
+                    f'<span class="user-message-file-chip"><span class="user-message-file-icon">＋</span>{escape(file_name)}</span>'
+                )
+            st.markdown(f'<div class="user-message-files">{"".join(chips)}</div>', unsafe_allow_html=True)
+
+
+def render_loading_bubble(persona: str) -> None:
+    with st.chat_message("assistant"):
+        st.caption(f"{persona} • memproses...")
+        
+
+
 def process_question(question: str, persona: str, uploaded_files: Optional[list[object]] = None) -> None:
     if not question.strip():
         st.error("Pertanyaan tidak boleh kosong.")
@@ -349,6 +395,13 @@ def process_question(question: str, persona: str, uploaded_files: Optional[list[
     if not WEBHOOK_URL or not WEBHOOK_TOKEN:
         st.error("Konfigurasi API belum lengkap. Isi OLIST_CHAT_WEBHOOK_URL dan OLIST_CHAT_WEBHOOK_TOKEN di .env atau Streamlit Secrets.")
         return
+
+    file_names = []
+    if uploaded_files:
+        file_names = [getattr(uploaded_file, "name", "") for uploaded_file in uploaded_files if getattr(uploaded_file, "name", "")]
+
+    render_user_bubble(question, persona, file_names=file_names)
+    render_loading_bubble(persona)
 
     try:
         with st.spinner("Memproses pertanyaan..."):
@@ -472,18 +525,10 @@ def render_chat(persona: str) -> None:
 
     for entry in st.session_state.chat_history:
         entry_persona = entry.get("persona", persona)
+        file_name = entry.get("file_name")
+        file_names = [str(file_name)] if file_name else None
 
-        st.markdown(
-            f"""
-            <div class="user-message-wrap">
-                <div class="user-message-card">
-                    <div class="user-message-persona">{entry_persona}</div>
-                    <p class="user-message-text">{entry['question']}</p>
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+        render_user_bubble(entry["question"], entry_persona, file_names=file_names)
 
         with st.chat_message("assistant"):
             st.caption(f"{entry_persona} • {entry['timestamp']} • {entry['mode']}")
