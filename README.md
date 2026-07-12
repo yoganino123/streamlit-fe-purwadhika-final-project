@@ -1,3 +1,5 @@
+w
+
 # Streamlit Frontend
 
 ## Setup (macOS/Linux)
@@ -5,15 +7,12 @@
 1. Buat virtual environment:
 
    python3 -m venv .venv
-
 2. Aktifkan virtual environment:
 
    source .venv/bin/activate
-
 3. Install dependencies:
 
    python -m pip install -r requirements.txt
-
 4. Jalankan app:
 
    streamlit run app.py
@@ -23,15 +22,12 @@
 1. Buat virtual environment:
 
    py -m venv .venv
-
 2. Aktifkan virtual environment:
 
    .venv\Scripts\activate
-
 3. Install dependencies:
 
    python -m pip install -r requirements.txt
-
 4. Jalankan app:
 
    streamlit run app.py

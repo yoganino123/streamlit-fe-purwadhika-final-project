@@ -1,7 +1,10 @@
 import json
+import mimetypes
 import os
 import socket
+import uuid
 from datetime import datetime
+from typing import Optional
 from urllib import error, request
 
 import streamlit as st
@@ -209,6 +212,54 @@ def render_styles() -> None:
             color: var(--text-soft) !important;
         }
 
+        [data-testid="stFileUploader"] {
+            margin-top: 0;
+            width: 3.25rem;
+        }
+
+        [data-testid="stFileUploader"] [data-testid="stFileUploaderDropzone"] {
+            min-height: 3.25rem;
+            padding: 0;
+            border: none;
+            background: transparent;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+        }
+
+        [data-testid="stFileUploader"] [data-testid="stFileUploaderDropzoneInstructions"] {
+            display: none;
+        }
+
+        [data-testid="stFileUploader"] button {
+            width: 3.25rem !important;
+            height: 3.25rem !important;
+            min-width: 3.25rem !important;
+            padding: 0 !important;
+            border-radius: 999px !important;
+            border: 1px solid var(--panel-border) !important;
+            background: rgba(15, 23, 42, 0.98) !important;
+            color: var(--text-main) !important;
+            box-shadow: 0 8px 24px rgba(15, 23, 42, 0.24);
+        }
+
+        [data-testid="stFileUploader"] button span {
+            font-size: 0 !important;
+        }
+
+        [data-testid="stFileUploader"] button::before {
+            content: "＋";
+            display: block;
+            font-size: 1.5rem;
+            line-height: 1;
+            font-weight: 600;
+            color: var(--text-main);
+        }
+
+        [data-testid="stFileUploader"] [data-testid="stFileUploaderFileName"] {
+            display: none;
+        }
+
         h1, h2, h3 {
             color: var(--text-main) !important;
         }
@@ -255,7 +306,40 @@ def initialize_state() -> None:
         st.session_state.email = DEFAULT_EMAIL
 
 
-def process_question(question: str, persona: str) -> None:
+def build_multipart_body(fields: dict[str, str], file_field: Optional[tuple[str, str, bytes]] = None) -> tuple[bytes, str]:
+    boundary = f"----WebKitFormBoundary{uuid.uuid4().hex}"
+    parts: list[bytes] = []
+
+    for key, value in fields.items():
+        parts.extend(
+            [
+                f"--{boundary}\r\n".encode("utf-8"),
+                f'Content-Disposition: form-data; name="{key}"\r\n\r\n'.encode("utf-8"),
+                value.encode("utf-8"),
+                b"\r\n",
+            ]
+        )
+
+    if file_field is not None:
+        field_name, filename, file_bytes = file_field
+        content_type = mimetypes.guess_type(filename)[0] or "application/octet-stream"
+        parts.extend(
+            [
+                f"--{boundary}\r\n".encode("utf-8"),
+                (
+                    f'Content-Disposition: form-data; name="{field_name}"; filename="{filename}"\r\n'
+                    f"Content-Type: {content_type}\r\n\r\n"
+                ).encode("utf-8"),
+                file_bytes,
+                b"\r\n",
+            ]
+        )
+
+    parts.append(f"--{boundary}--\r\n".encode("utf-8"))
+    return b"".join(parts), f"multipart/form-data; boundary={boundary}"
+
+
+def process_question(question: str, persona: str, uploaded_files: Optional[list[object]] = None) -> None:
     if not question.strip():
         st.error("Pertanyaan tidak boleh kosong.")
         return
@@ -268,7 +352,7 @@ def process_question(question: str, persona: str) -> None:
 
     try:
         with st.spinner("Memproses pertanyaan..."):
-            response = call_backend(question=question, persona=persona)
+            response = call_backend(question=question, persona=persona, uploaded_files=uploaded_files)
     except RuntimeError as exc:
         st.error(str(exc))
         return
@@ -297,22 +381,33 @@ def parse_api_response(response_body: str) -> tuple[str, list[str], list[tuple[s
     return message, sources, kpis, mode
 
 
-def call_backend(question: str, persona: str) -> dict:
+def call_backend(question: str, persona: str, uploaded_files: Optional[list[object]] = None) -> dict:
     """Call the chat webhook and normalize the response for the UI."""
     timestamp = datetime.now().strftime("%H:%M")
 
-    payload = {
+    fields = {
         "role": PERSONA_TO_ROLE[persona],
         "name": st.session_state.name.strip(),
         "email": st.session_state.email.strip(),
         "message": question.strip(),
     }
+    file_payload = None
+    uploaded_file_name = None
+
+    if uploaded_files:
+        first_file = uploaded_files[0]
+        uploaded_file_name = getattr(first_file, "name", None)
+        file_bytes = first_file.getvalue() if hasattr(first_file, "getvalue") else first_file.read()
+        if uploaded_file_name:
+            file_payload = ("file", uploaded_file_name, file_bytes)
+
+    body, content_type = build_multipart_body(fields, file_payload)
     req = request.Request(
         WEBHOOK_URL,
-        data=json.dumps(payload).encode("utf-8"),
+        data=body,
         headers={
             "x-token-webhook": WEBHOOK_TOKEN,
-            "Content-Type": "application/json",
+            "Content-Type": content_type,
             "Accept": "*/*",
             "User-Agent": "curl/8.7.1",
         },
@@ -344,6 +439,7 @@ def call_backend(question: str, persona: str) -> dict:
         "kpis": kpis,
         "mode": mode,
         "question": question,
+        "file_name": uploaded_file_name,
     }
 
 
@@ -408,9 +504,17 @@ def main() -> None:
     render_chat(persona)
     render_quick_prompts(persona)
 
-    prompt = st.chat_input("Tulis pertanyaan Anda di sini...")
+    prompt = st.chat_input(
+        "Tulis pertanyaan Anda di sini...",
+        accept_file=True,
+        file_type=["jpg", "jpeg", "png", "webp", "pdf"],
+        key="chat_input",
+    )
+
     if prompt:
-        process_question(prompt, persona)
+        prompt_text = prompt.text if hasattr(prompt, "text") else str(prompt)
+        prompt_files = list(prompt.files) if hasattr(prompt, "files") and prompt.files else []
+        process_question(prompt_text, persona, uploaded_files=prompt_files)
         st.rerun()
 
 
