@@ -31,7 +31,7 @@ PERSONAS = {
         "tagline": "Asisten belanja untuk Pembeli",
         "description": "Tanya rekomendasi produk, alternatif, dan alasan pemilihannya.",
         "role": "assistant",
-        "accent": "#38bdf8",
+        "accent": "#10b981",
         "suggestions": [
             "Rekomendasikan produk kategori rumah tangga dengan rating terbaik.",
             "Cari alternatif produk dengan review lebih tinggi.",
@@ -44,7 +44,7 @@ PERSONAS = {
         "tagline": "Asisten bisnis untuk Penjual",
         "description": "Pantau KPI, tren order, dan aksi prioritas berbasis insight.",
         "role": "mentor",
-        "accent": "#f59e0b",
+        "accent": "#8b5cf6",
         "suggestions": [
             "Tampilkan tren order 30 hari terakhir.",
             "Apa penyebab keterlambatan pengiriman minggu ini?",
@@ -101,10 +101,10 @@ def render_styles() -> None:
             --text-main: #f3f4f6;
             --text-muted: #c0cad8;
             --text-soft: #94a3b8;
-            --brand-from: #38bdf8;
-            --brand-to: #818cf8;
-            --buyer-accent: #38bdf8;
-            --seller-accent: #f59e0b;
+            --brand-from: #10b981;
+            --brand-to: #8b5cf6;
+            --buyer-accent: #10b981;
+            --seller-accent: #8b5cf6;
         }
 
         html, body, [class*="css"] {
@@ -124,7 +124,7 @@ def render_styles() -> None:
         body::before {
             width: 480px;
             height: 480px;
-            background: rgba(56, 189, 248, 0.16);
+            background: rgba(16, 185, 129, 0.16);
             top: -180px;
             left: -140px;
         }
@@ -132,7 +132,7 @@ def render_styles() -> None:
         body::after {
             width: 460px;
             height: 460px;
-            background: rgba(245, 158, 11, 0.12);
+            background: rgba(139, 92, 246, 0.12);
             bottom: -160px;
             right: -120px;
         }
@@ -163,7 +163,7 @@ def render_styles() -> None:
             align-items: center;
             justify-content: center;
             font-size: 1.6rem;
-            box-shadow: 0 10px 24px rgba(56, 189, 248, 0.3);
+            box-shadow: 0 10px 24px rgba(16, 185, 129, 0.3);
             flex-shrink: 0;
         }
 
@@ -337,7 +337,7 @@ def render_styles() -> None:
 
         [data-testid="stChatInput"]:focus-within {
             border-color: var(--brand-from);
-            box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.15), 0 8px 24px rgba(15, 23, 42, 0.24);
+            box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15), 0 8px 24px rgba(15, 23, 42, 0.24);
         }
 
         [data-testid="stChatInput"] textarea {
@@ -401,8 +401,21 @@ def render_styles() -> None:
             color: var(--text-main) !important;
         }
 
-        .stApp > header {
+        .stApp > header,
+        [data-testid="stHeader"],
+        [data-testid="stAppToolbar"],
+        [data-testid="stToolbar"],
+        [data-testid="stAppDeployButton"],
+        [data-testid="stDecoration"] {
             background: transparent;
+            box-shadow: none;
+        }
+
+        #MainMenu,
+        footer,
+        [data-testid="stStatusWidget"] {
+            visibility: hidden;
+            height: 0;
         }
 
         [data-testid="stAppViewContainer"],
@@ -442,7 +455,7 @@ def render_styles() -> None:
         .stButton button:hover,
         [data-testid="stFormSubmitButton"] button:hover {
             border-color: var(--brand-from);
-            box-shadow: 0 8px 20px rgba(56, 189, 248, 0.22);
+            box-shadow: 0 8px 20px rgba(16, 185, 129, 0.22);
             transform: translateY(-1px);
         }
 
@@ -458,12 +471,12 @@ def render_styles() -> None:
 
         .welcome-card.accent-buyer {
             border-left-color: var(--buyer-accent);
-            box-shadow: 0 16px 32px var(--panel-shadow), 0 0 0 1px rgba(56, 189, 248, 0.14);
+            box-shadow: 0 16px 32px var(--panel-shadow), 0 0 0 1px rgba(16, 185, 129, 0.14);
         }
 
         .welcome-card.accent-seller {
             border-left-color: var(--seller-accent);
-            box-shadow: 0 16px 32px var(--panel-shadow), 0 0 0 1px rgba(245, 158, 11, 0.14);
+            box-shadow: 0 16px 32px var(--panel-shadow), 0 0 0 1px rgba(139, 92, 246, 0.14);
         }
 
         .welcome-title-row {
@@ -485,8 +498,8 @@ def render_styles() -> None:
             background: rgba(255, 255, 255, 0.06);
         }
 
-        .accent-buyer .welcome-icon-badge { background: rgba(56, 189, 248, 0.16); }
-        .accent-seller .welcome-icon-badge { background: rgba(245, 158, 11, 0.16); }
+        .accent-buyer .welcome-icon-badge { background: rgba(16, 185, 129, 0.16); }
+        .accent-seller .welcome-icon-badge { background: rgba(139, 92, 246, 0.16); }
 
         .welcome-title {
             font-size: 1.15rem;
@@ -528,7 +541,7 @@ def render_styles() -> None:
             align-items: center;
             justify-content: center;
             font-size: 1.8rem;
-            box-shadow: 0 12px 30px rgba(56, 189, 248, 0.35);
+            box-shadow: 0 12px 30px rgba(16, 185, 129, 0.35);
         }
 
         .login-title {
@@ -567,15 +580,15 @@ def render_styles() -> None:
         }
 
         .persona-chip.accent-buyer {
-            background: rgba(56, 189, 248, 0.12);
-            color: #7dd3fc;
-            border-color: rgba(56, 189, 248, 0.35);
+            background: rgba(16, 185, 129, 0.12);
+            color: #6ee7b7;
+            border-color: rgba(16, 185, 129, 0.35);
         }
 
         .persona-chip.accent-seller {
-            background: rgba(245, 158, 11, 0.12);
-            color: #fbbf24;
-            border-color: rgba(245, 158, 11, 0.35);
+            background: rgba(139, 92, 246, 0.12);
+            color: #c4b5fd;
+            border-color: rgba(139, 92, 246, 0.35);
         }
 
         .st-key-login_card [data-testid="stTextInputRootElement"] {
@@ -593,7 +606,7 @@ def render_styles() -> None:
 
         .st-key-login_card [data-testid="stFormSubmitButton"] button:hover {
             filter: brightness(1.08);
-            box-shadow: 0 14px 28px rgba(56, 189, 248, 0.4);
+            box-shadow: 0 14px 28px rgba(16, 185, 129, 0.4);
         }
 
         .login-footer {
@@ -890,7 +903,7 @@ def render_sidebar() -> None:
     )
     st.sidebar.caption("Satu AI, dua peran: bantu Anda belanja atau kelola toko.")
 
-    with st.sidebar.expander("ℹ️ Tentang aplikasi", expanded=False):
+    with st.sidebar.expander("ℹ️ Tentang aplikasi", expanded=True):
         st.markdown(
             "- 🛒 **Buyer** — rekomendasi produk, perbandingan, dan alasan pemilihannya.\n"
             "- 🏬 **Seller** — insight KPI, tren order, dan aksi prioritas toko.\n"
@@ -1015,7 +1028,8 @@ def main() -> None:
 
     persona = render_persona_switcher()
     render_chat(persona)
-    render_quick_prompts(persona)
+    if not st.session_state.chat_history:
+        render_quick_prompts(persona)
 
     st.caption("📎 Bisa lampirkan gambar (JPG/PNG/WEBP) atau PDF — klik ikon ＋ di sebelah kotak chat sebelum kirim.")
     prompt = st.chat_input(
