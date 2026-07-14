@@ -503,6 +503,10 @@ def render_sidebar() -> str:
     # st.sidebar.text_input("Email", key="email")
     st.sidebar.caption(PERSONAS[persona]["description"])
 
+    if st.session_state.get("active_persona") != persona:
+        st.session_state.active_persona = persona
+        st.session_state.chat_history = []
+
     return persona
 
 
