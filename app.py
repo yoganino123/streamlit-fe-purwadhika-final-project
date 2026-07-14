@@ -10,6 +10,7 @@ from typing import Optional
 from urllib import error, request
 
 import streamlit as st
+import streamlit.components.v1 as components
 from dotenv import load_dotenv
 
 
@@ -169,47 +170,6 @@ def render_styles() -> None:
             color: var(--text-main);
         }
 
-        .user-message-files {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 0.4rem;
-            margin-top: 0.65rem;
-        }
-
-        .user-message-file-chip {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.35rem;
-            padding: 0.35rem 0.65rem;
-            border-radius: 999px;
-            border: 1px solid var(--panel-border);
-            background: rgba(15, 23, 42, 0.65);
-            color: var(--text-muted);
-            font-size: 0.78rem;
-            line-height: 1;
-            text-decoration: none;
-            cursor: pointer;
-        }
-
-        .user-message-file-chip:hover {
-            border-color: var(--text-soft);
-            color: var(--text-main);
-        }
-
-        .user-message-file-icon {
-            color: var(--text-soft);
-            font-size: 0.8rem;
-        }
-
-        .user-message-image-preview {
-            display: block;
-            max-width: 160px;
-            max-height: 160px;
-            border-radius: 10px;
-            margin-top: 0.65rem;
-            border: 1px solid var(--panel-border);
-            object-fit: cover;
-        }
 
         [data-testid="stChatMessage"] {
             background: var(--panel-bg);
@@ -383,31 +343,61 @@ def build_multipart_body(fields: dict[str, str], file_field: Optional[tuple[str,
     return b"".join(parts), f"multipart/form-data; boundary={boundary}"
 
 
+def render_attachment_widget(attachment: dict) -> None:
+    name = attachment.get("name", "file")
+    mime = attachment.get("mime") or "application/octet-stream"
+    data_b64 = attachment.get("data", "")
+    safe_name = escape(name)
+    is_image = mime.startswith("image/")
+
+    if is_image:
+        trigger_html = f'<img class="preview" src="data:{mime};base64,{data_b64}" alt="{safe_name}" />'
+        height = 176
+    else:
+        trigger_html = f'<span class="chip"><span class="icon">📄</span>{safe_name}</span>'
+        height = 44
+
+    components.html(
+        f"""
+        <style>
+          html, body {{ margin: 0; padding: 0; background: transparent; font-family: "Source Sans Pro", sans-serif; }}
+          .preview {{
+            display: block; max-width: 160px; max-height: 160px; border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.1); cursor: pointer; object-fit: cover;
+          }}
+          .chip {{
+            display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.35rem 0.65rem;
+            border-radius: 999px; border: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(15, 23, 42, 0.65); color: #c0cad8; font-size: 0.78rem;
+            line-height: 1; cursor: pointer; width: fit-content;
+          }}
+          .chip:hover {{ border-color: #94a3b8; color: #f3f4f6; }}
+          .icon {{ color: #94a3b8; font-size: 0.8rem; }}
+        </style>
+        <div onclick="openAttachment()">{trigger_html}</div>
+        <script>
+          function openAttachment() {{
+            const byteChars = atob("{data_b64}");
+            const byteNumbers = new Array(byteChars.length);
+            for (let i = 0; i < byteChars.length; i++) {{
+              byteNumbers[i] = byteChars.charCodeAt(i);
+            }}
+            const blob = new Blob([new Uint8Array(byteNumbers)], {{ type: "{mime}" }});
+            window.open(URL.createObjectURL(blob), "_blank");
+          }}
+        </script>
+        """,
+        height=height,
+    )
+
+
 def render_user_bubble(question: str, persona: str, attachment: Optional[dict] = None) -> None:
     with st.chat_message("user"):
         st.caption(persona)
         st.write(question)
 
         if attachment:
-            name = attachment.get("name", "file")
-            mime = attachment.get("mime") or ""
-            data_b64 = attachment.get("data", "")
-            data_uri = f"data:{mime};base64,{data_b64}"
-
-            if mime.startswith("image/"):
-                st.markdown(
-                    f'<a href="{data_uri}" target="_blank" rel="noopener noreferrer">'
-                    f'<img class="user-message-image-preview" src="{data_uri}" alt="{escape(name)}" /></a>',
-                    unsafe_allow_html=True,
-                )
-            else:
-                st.markdown(
-                    '<div class="user-message-files">'
-                    f'<a class="user-message-file-chip" href="{data_uri}" target="_blank" rel="noopener noreferrer">'
-                    f'<span class="user-message-file-icon">📄</span>{escape(name)}</a>'
-                    "</div>",
-                    unsafe_allow_html=True,
-                )
+            render_attachment_widget(attachment)
 
 
 def render_loading_bubble(persona: str) -> None:
