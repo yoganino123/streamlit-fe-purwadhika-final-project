@@ -51,6 +51,12 @@ w
    OLIST_CHAT_WEBHOOK_TOKEN = "..."
    OLIST_CHAT_DEFAULT_NAME = "John Doe"
    OLIST_CHAT_DEFAULT_EMAIL = "johndoemul@example.com"
+   OLIST_CHAT_APP_USERNAME = "admin"
+   OLIST_CHAT_APP_PASSWORD = "admin123"
    ```
 
 Catatan: di Streamlit Cloud, credential lebih aman disimpan di Secrets daripada di `.env`. File [`.streamlit/secrets.toml`](.streamlit/secrets.toml) tetap jangan di-commit.
+
+## Login
+
+App dilindungi login sederhana (username/password) supaya prompt LLM tidak bisa diakses sembarang orang. Default: `admin` / `admin123` — ganti via env var `OLIST_CHAT_APP_USERNAME` / `OLIST_CHAT_APP_PASSWORD` (atau Secrets di Streamlit Cloud) sebelum deploy.
