@@ -1,3 +1,4 @@
+import base64
 import json
 import mimetypes
 import os
@@ -186,11 +187,28 @@ def render_styles() -> None:
             color: var(--text-muted);
             font-size: 0.78rem;
             line-height: 1;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        .user-message-file-chip:hover {
+            border-color: var(--text-soft);
+            color: var(--text-main);
         }
 
         .user-message-file-icon {
             color: var(--text-soft);
             font-size: 0.8rem;
+        }
+
+        .user-message-image-preview {
+            display: block;
+            max-width: 160px;
+            max-height: 160px;
+            border-radius: 10px;
+            margin-top: 0.65rem;
+            border: 1px solid var(--panel-border);
+            object-fit: cover;
         }
 
         [data-testid="stChatMessage"] {
@@ -365,18 +383,31 @@ def build_multipart_body(fields: dict[str, str], file_field: Optional[tuple[str,
     return b"".join(parts), f"multipart/form-data; boundary={boundary}"
 
 
-def render_user_bubble(question: str, persona: str, file_names: Optional[list[str]] = None) -> None:
+def render_user_bubble(question: str, persona: str, attachment: Optional[dict] = None) -> None:
     with st.chat_message("user"):
         st.caption(persona)
         st.write(question)
 
-        if file_names:
-            chips = []
-            for file_name in file_names:
-                chips.append(
-                    f'<span class="user-message-file-chip"><span class="user-message-file-icon">＋</span>{escape(file_name)}</span>'
+        if attachment:
+            name = attachment.get("name", "file")
+            mime = attachment.get("mime") or ""
+            data_b64 = attachment.get("data", "")
+            data_uri = f"data:{mime};base64,{data_b64}"
+
+            if mime.startswith("image/"):
+                st.markdown(
+                    f'<a href="{data_uri}" target="_blank" rel="noopener noreferrer">'
+                    f'<img class="user-message-image-preview" src="{data_uri}" alt="{escape(name)}" /></a>',
+                    unsafe_allow_html=True,
                 )
-            st.markdown(f'<div class="user-message-files">{"".join(chips)}</div>', unsafe_allow_html=True)
+            else:
+                st.markdown(
+                    '<div class="user-message-files">'
+                    f'<a class="user-message-file-chip" href="{data_uri}" target="_blank" rel="noopener noreferrer">'
+                    f'<span class="user-message-file-icon">📄</span>{escape(name)}</a>'
+                    "</div>",
+                    unsafe_allow_html=True,
+                )
 
 
 def render_loading_bubble(persona: str) -> None:
@@ -396,11 +427,9 @@ def process_question(question: str, persona: str, uploaded_files: Optional[list[
         st.error("Konfigurasi API belum lengkap. Isi OLIST_CHAT_WEBHOOK_URL dan OLIST_CHAT_WEBHOOK_TOKEN di .env atau Streamlit Secrets.")
         return
 
-    file_names = []
-    if uploaded_files:
-        file_names = [getattr(uploaded_file, "name", "") for uploaded_file in uploaded_files if getattr(uploaded_file, "name", "")]
+    attachment = build_attachment(uploaded_files)
 
-    render_user_bubble(question, persona, file_names=file_names)
+    render_user_bubble(question, persona, attachment=attachment)
     render_loading_bubble(persona)
 
     try:
@@ -413,7 +442,27 @@ def process_question(question: str, persona: str, uploaded_files: Optional[list[
         st.error("Terjadi error tak terduga saat memproses permintaan. Silakan coba lagi.")
         return
 
+    response["attachment"] = attachment
     st.session_state.chat_history.append(response)
+
+
+def build_attachment(uploaded_files: Optional[list[object]] = None) -> Optional[dict]:
+    if not uploaded_files:
+        return None
+
+    first_file = uploaded_files[0]
+    name = getattr(first_file, "name", "")
+    if not name:
+        return None
+
+    mime = getattr(first_file, "type", None) or mimetypes.guess_type(name)[0] or "application/octet-stream"
+    file_bytes = first_file.getvalue() if hasattr(first_file, "getvalue") else first_file.read()
+
+    return {
+        "name": name,
+        "mime": mime,
+        "data": base64.b64encode(file_bytes).decode("utf-8"),
+    }
 
 
 def parse_api_response(response_body: str) -> tuple[str, list[str], list[tuple[str, str, str]], str]:
@@ -492,7 +541,6 @@ def call_backend(question: str, persona: str, uploaded_files: Optional[list[obje
         "kpis": kpis,
         "mode": mode,
         "question": question,
-        "file_name": uploaded_file_name,
     }
 
 
@@ -529,10 +577,9 @@ def render_chat(persona: str) -> None:
 
     for entry in st.session_state.chat_history:
         entry_persona = entry.get("persona", persona)
-        file_name = entry.get("file_name")
-        file_names = [str(file_name)] if file_name else None
+        attachment = entry.get("attachment")
 
-        render_user_bubble(entry["question"], entry_persona, file_names=file_names)
+        render_user_bubble(entry["question"], entry_persona, attachment=attachment)
 
         with st.chat_message("assistant"):
             st.caption(f"{entry_persona} • {entry['timestamp']} • {entry['mode']}")
