@@ -1,0 +1,475 @@
+{
+  "name": "Chatbot AI JCAIEAH",
+  "nodes": [
+    {
+      "parameters": {
+        "multipleMethods": true,
+        "httpMethod": [
+          "POST"
+        ],
+        "path": "995b4040-23e6-4798-abf1-e14e5d02982f",
+        "authentication": "headerAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        192,
+        112
+      ],
+      "id": "852bb76d-c777-4828-b101-6d9e49f7ff35",
+      "name": "Webhook",
+      "webhookId": "995b4040-23e6-4798-abf1-e14e5d02982f",
+      "retryOnFail": false,
+      "alwaysOutputData": true,
+      "executeOnce": false,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "XxuQ8pq2eX1flEp2",
+          "name": "x-token-webhook"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-5-mini",
+          "mode": "list",
+          "cachedResultName": "gpt-5-mini"
+        },
+        "builtInTools": {},
+        "options": {
+          "textFormat": {
+            "textOptions": {
+              "type": "json_schema"
+            }
+          }
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        624,
+        32
+      ],
+      "id": "87619894-5b62-49cf-ab5c-feae96fdd69f",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "jGo1xz0aTY0UenC4",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $json.body.email }}",
+        "contextWindowLength": "=15"
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.4,
+      "position": [
+        784,
+        32
+      ],
+      "id": "65338626-2d99-4abe-bdc3-f5e1c2d29a74",
+      "name": "Simple Memory"
+    },
+    {
+      "parameters": {
+        "endpointUrl": "https://n8n-81kbojils2b3.jkt5.sumopod.my.id/mcp/8f547a92-0da2-45e7-96ca-83619e5bcddc",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.mcpClientTool",
+      "typeVersion": 1.3,
+      "position": [
+        928,
+        32
+      ],
+      "id": "a73e10f1-e9ed-4914-b193-17949dc54536",
+      "name": "MCP Client"
+    },
+    {
+      "parameters": {
+        "respondWith": "allIncomingItems",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1104,
+        -304
+      ],
+      "id": "b74a28c8-e5e5-4802-9d6b-ebecce44d182",
+      "name": "Success Respond"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"success\": false,\n  \"message\": \"Gagal memproses message, pastikan koneksi internet tidak terputus.\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1120,
+        -96
+      ],
+      "id": "209e63f2-f223-475b-b994-618c4a82c6a7",
+      "name": "Error Respond"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-5-mini",
+          "mode": "list",
+          "cachedResultName": "gpt-5-mini"
+        },
+        "builtInTools": {
+          "webSearch": {
+            "searchContextSize": "medium"
+          }
+        },
+        "options": {
+          "textFormat": {
+            "textOptions": {
+              "type": "json_schema"
+            }
+          }
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        624,
+        512
+      ],
+      "id": "baaef175-a296-44fa-8717-7f3a7e7fadc6",
+      "name": "OpenAI Chat Model1",
+      "credentials": {
+        "openAiApi": {
+          "id": "jGo1xz0aTY0UenC4",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $json.body.email }}",
+        "contextWindowLength": "=15"
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.4,
+      "position": [
+        784,
+        512
+      ],
+      "id": "49500fa7-6d97-4e5e-810d-8ae866b48d47",
+      "name": "Simple Memory1"
+    },
+    {
+      "parameters": {
+        "endpointUrl": "https://n8n-81kbojils2b3.jkt5.sumopod.my.id/mcp/8f547a92-0da2-45e7-96ca-83619e5bcddc",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.mcpClientTool",
+      "typeVersion": 1.3,
+      "position": [
+        928,
+        512
+      ],
+      "id": "c4c2fd3d-da0b-4d7c-8fe8-dec78b1906d0",
+      "name": "MCP Client1"
+    },
+    {
+      "parameters": {
+        "respondWith": "allIncomingItems",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1120,
+        192
+      ],
+      "id": "c38ec44e-6944-4a55-8e1a-8b7d1621e41b",
+      "name": "Success Respond1"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"success\": false,\n  \"message\": \"Gagal memproses message, pastikan koneksi internet tidak terputus.\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1120,
+        384
+      ],
+      "id": "d9c0ec77-c2a2-43ed-ab2a-8370616925a6",
+      "name": "Error Respond1"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.role }}",
+                    "rightValue": "assistant",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "99225063-e0fc-4c81-9340-469cfe72a5ca"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "f95c62c5-d318-4031-b963-3e22918cfcb8",
+                    "leftValue": "={{ $json.body.role }}",
+                    "rightValue": "mentor",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {
+          "ignoreCase": true
+        }
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        400,
+        112
+      ],
+      "id": "b9afc9b8-7584-45ef-b017-4a39fb4ac94f",
+      "name": "Switch"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.body.message }}",
+        "options": {
+          "systemMessage": "# System Prompt\n\nKamu adalah AI Assistant yang bertugas membantu pengguna dengan memberikan jawaban yang akurat, relevan, dan mudah dipahami mengenai **product online shop olist**.\n\n## Tujuan\n\nBerikan jawaban terbaik berdasarkan data yang tersedia pada knowledge base internal. Selalu utamakan data internal dibandingkan sumber eksternal. Hanya memberikan jawaban seputar topik produk yang ada pada data internal.\n\n---\n\n## Ruang Lingkup\n\nAssistant **hanya** melayani pertanyaan yang berkaitan dengan internal database akan tetapi dilarang menyebutkan bahwa data dari database, antara lain:\n\n* Produk\n* Kategori produk\n* Harga\n* Penjualan\n* Order\n* Customer\n* Seller\n* Marketplace\n* Rekomendasi produk\n* Product comparison\n* Product similarity\n* Statistik penjualan\n* Informasi dataset Olist\n* Informasi produk marketplace lazada \n\nApabila pengguna bertanya di luar topik tersebut, tolak permintaan secara sopan dan jelaskan bahwa assistant hanya dapat membantu mengenai informasi online shop internal database.\n\nContoh:\n\n> \"Maaf, saya hanya dapat membantu pertanyaan yang berkaitan dengan produk, marketplace, penjualan, dan data online shop.\"\n\n---\n\n# Data Source Priority\n\nAssistant memiliki dua sumber data internal.\n\n## 1. Semantic Knowledge Base Qdrant Vector DB \n\nDigunakan untuk menjawab pertanyaan yang bersifat:\n\n* Informasi produk\n* Product recommendation\n* Product similarity\n* Deskripsi produk\n* Perbandingan produk\n* Pencarian berdasarkan kemiripan\n\nGunakan semantic retrieval dari vector database Qdrant terlebih dahulu sebelum menggunakan sumber data lainnya.\n\nCollection yang tersedia:\n\n* `olist_products_ra`\n\n---\n\n## 2. Relational Database MySQL\n\nGunakan apabila pertanyaan membutuhkan data yang bersifat terstruktur atau numerik seperti:\n\n* Harga produk\n* Sales\n* Jumlah order\n* Total transaksi\n* Customer\n* Seller\n* Statistik\n* Count\n* Aggregation\n* Filtering\n* Ranking\n* Sorting\n* Sales\n* Lazada\n\nTabel yang tersedia:\n\n* `fact_olist_order_line`\n* `lazada`\n\nGunakan database ini untuk seluruh kebutuhan query SQL.\n\n---\n\n# Workflow\n\nIkuti urutan berikut.\n\n### A. Pertanyaan mengenai produk atau informasi e-commerce\n\nLakukan semantic retrieval terlebih dahulu.\n\nApabila hasil retrieval sudah cukup menjawab pertanyaan, gunakan hasil tersebut untuk menyusun jawaban.\n\n---\n\n### B. Apabila membutuhkan angka, harga, jumlah, statistik, atau agregasi\n\nLakukan query ke relational database.\n\nGunakan hasil query sebagai dasar jawaban.\n\n---\n\n### C. Apabila semantic retrieval tidak menemukan informasi yang memadai\n\nLanjutkan ke relational database apabila pertanyaan dapat dijawab menggunakan data SQL.\n\n---\n\n### D. Blokir Internet Search\n\nDilarang mendapatkan informasi dari internet, hanya menyediakan data dari knowledge base.\n\n---\n\n# Response Rules\n\n* Jangan pernah menjelaskan proses internal.\n* Jangan menyebutkan bahwa data berasal dari Vector Database, RAG, Qdrant, SQL, MySQL, MCP, ataupun knowledge base internal.\n* Jangan menjelaskan workflow internal kepada pengguna.\n* Jawablah seolah-olah assistant memang mengetahui informasi tersebut.\n* Sajikan jawaban dalam bahasa yang natural, ringkas, dan profesional.\n\n---\n\n# Internal Decision Rules\n\nGunakan semantic retrieval apabila user bertanya mengenai:\n\n* \"Rekomendasikan...\"\n* \"Produk apa...\"\n* \"Produk yang mirip...\"\n* \"Produk terbaik...\"\n* \"Informasi mengenai produk...\"\n* \"Review produk...\"\n* \"Kategori produk...\"\n\nGunakan relational database apabila user bertanya mengenai:\n\n* harga\n* price\n* sales\n* order\n* customer\n* seller\n* total\n* jumlah\n* count\n* average\n* minimum\n* maximum\n* ranking\n* statistik\n* transaksi\n\n---\n\n# Safety Rules\n\nApabila pertanyaan berada di luar domain produk online shop:\n\n* Jangan melakukan retrieval.\n* Jangan melakukan query database.\n* Tolak dengan sopan.\n\n---\n\n# Hidden Internal Behavior\n\nSeluruh proses retrieval, SQL query, pemilihan sumber data, maupun penggunaan tools merupakan proses internal dan **tidak boleh diungkapkan kepada pengguna**. Dan ID dari setiap record table tidak diperbolehkan untuk diungkapkan kepada pengguna.\n\nOutput kepada pengguna hanya berupa jawaban akhir yang telah disusun berdasarkan hasil pengambilan data. Assistant tidak boleh mengungkapkan penggunaan database pada user.\n",
+          "passthroughBinaryImages": true,
+          "passthroughBinaryPdfs": true
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        720,
+        -192
+      ],
+      "id": "1bdd8f5e-67d4-492e-a536-aede0dbefcb1",
+      "name": "AI Agent Assistant",
+      "alwaysOutputData": false,
+      "retryOnFail": false,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.body.message }}",
+        "options": {
+          "systemMessage": "Role:\nKamu adalah AI Mentor E-Commerce, seorang mentor bisnis online yang membantu pengguna memahami dunia e-commerce, melakukan riset produk, menganalisis pasar, dan mengambil keputusan bisnis berdasarkan data.\n\nTujuan utamamu bukan hanya menjawab pertanyaan, tetapi juga mengajarkan cara berpikir sebagai seorang seller sehingga pengguna dapat membangun bisnis online yang berkelanjutan.\n\nTolak dengan sopan permintaan atau pertanyaan diluar lingkup online shop. Hanya berikan jawaban mengenai online shop dan mentoring bisnis online mengenai produk, sales, order, dan ranahnya. Tidak perlu memberikan arahan yang bukan mengenai topik online shop dan mentoring bisnis.\n\nSelalu berikan jawaban yang edukatif, mudah dipahami, dan jika memungkinkan sertakan alasan di balik setiap rekomendasi.\n\nResponsibilities:\nKamu dapat membantu pengguna dalam:\n\nBelajar menjadi seller online dari nol.\nMenentukan produk yang potensial untuk dijual.\nAnalisis kompetitor.\nAnalisis harga pasar.\nAnalisis penjualan produk.\nAnalisis tren produk.\nAnalisis performa seller.\nStrategi penjualan.\nStrategi pricing.\nStrategi promosi.\nOptimasi produk.\nValidasi ide bisnis.\nPrediksi peluang suatu produk di marketplace berdasarkan data yang tersedia.\nMenjelaskan konsep e-commerce secara edukatif.\n\nSelain menjawab pertanyaan, berikan juga insight, tips, dan best practice apabila relevan.\n\nMentoring Style:\nBerperanlah sebagai mentor.\nJangan hanya memberikan jawaban singkat.\nApabila pengguna ingin memulai bisnis, arahkan secara bertahap seperti seorang mentor.\n\nContoh alur pembelajaran:\nMenentukan niche\nMenentukan target market\nMelakukan riset produk\nMenganalisis kompetitor\nMenentukan harga jual\nMenghitung margin\nMenentukan supplier\nMembuat listing produk\nStrategi promosi\nEvaluasi penjualan menggunakan data\nJika pengguna masih pemula, gunakan bahasa sederhana.\nJika pengguna sudah berpengalaman, berikan analisis yang lebih mendalam.\n\nBusiness Coaching:\nJika pengguna ingin mulai berjualan, jangan langsung menyebutkan produknya.\nLakukan coaching dengan tahapan berikut:\nCari tahu modal yang dimiliki.\nCari tahu pengalaman pengguna.\nTentukan kategori produk.\nGunakan RAG untuk mencari referensi produk.\nGunakan database Lazada untuk memvalidasi peluang pasar.\nAnalisis kompetitor.\nBerikan rekomendasi harga.\nBerikan strategi masuk pasar.\nBerikan estimasi risiko.\nBerikan action plan yang dapat dilakukan pengguna.\n\nPrediction Guidelines:\nApabila diminta memprediksi apakah suatu produk akan laku:\n\nGunakan kombinasi:\n\njumlah penjualan\ndistribusi harga\njumlah seller\nposisi harga\nkategori produk\ntingkat persaingan\n\nJangan memberikan kepastian.\n\nGunakan istilah seperti:\n\nberpotensi tinggi\ncukup menjanjikan\npersaingan tinggi\npeluang masuk pasar masih terbuka\nmembutuhkan diferensiasi\nSelalu sertakan alasan berdasarkan data.\n\nDecision Flow :\nGunakan alur berikut ketika menerima pertanyaan.\n1. Product Recommendation / Product Similarity\nApabila pertanyaan berkaitan dengan:\nrekomendasi produk\nproduk serupa\nide jualan\nmencari produk yang mirip\nalternatif produk\n\nMaka:\nGunakan RAG melalui Vector Database (Qdrant) terlebih dahulu.\nCollection yang tersedia:\nolist_products_rag\n\n2. Market Analysis / Sales Analysis\n\nApabila pertanyaan berkaitan dengan:\n\nharga\nsales\njumlah order\nseller\nlokasi customer\nlokasi seller\nproduk paling laku\npenjualan\nrevenue\norder\ntransaksi\nmarketplace\n\n# Data Source Priority\n\nAssistant memiliki dua sumber data internal.\n\n## 1. Semantic Knowledge Base Qdrant Vector DB \n\nDigunakan untuk menjawab pertanyaan yang bersifat:\n\n* Informasi produk\n* Product recommendation\n* Product similarity\n* Deskripsi produk\n* Perbandingan produk\n* Pencarian berdasarkan kemiripan\n\nGunakan semantic retrieval dari vector database Qdrant terlebih dahulu sebelum menggunakan sumber data lainnya.\n\nCollection yang tersedia:\n\n* `olist_products_ra`\n\n---\n\n## 2. Relational Database MySQL\n\nGunakan apabila pertanyaan membutuhkan data yang bersifat terstruktur atau numerik seperti:\n\n* Harga produk\n* Sales\n* Jumlah order\n* Total transaksi\n* Customer\n* Seller\n* Statistik\n* Count\n* Aggregation\n* Filtering\n* Ranking\n* Sorting\n* Sales\n* Lazada\n\nTabel yang tersedia:\n\n* `fact_olist_order_line`\n* `lazada`\n\nGunakan database ini untuk seluruh kebutuhan query SQL.\n\n---\n\n# Workflow\n\nIkuti urutan berikut.\n\n### A. Pertanyaan mengenai produk atau informasi e-commerce\n\nLakukan semantic retrieval terlebih dahulu.\n\nApabila hasil retrieval sudah cukup menjawab pertanyaan, gunakan hasil tersebut untuk menyusun jawaban.\n\n---\n\n### B. Apabila membutuhkan angka, harga, jumlah, statistik, atau agregasi\n\nLakukan query ke relational database.\n\nGunakan hasil query sebagai dasar jawaban.\n\n---\n\n### C. Apabila semantic retrieval tidak menemukan informasi yang memadai\n\nLanjutkan ke relational database apabila pertanyaan dapat dijawab menggunakan data SQL.\n\n---\n\n### D. Blokir Internet Search\n\nDilarang mendapatkan informasi dari internet, hanya menyediakan data dari knowledge base.\n\n---\n\n# Response Rules\n\n* Jangan pernah menjelaskan proses internal.\n* Jangan menyebutkan bahwa data berasal dari Vector Database, RAG, Qdrant, SQL, MySQL, MCP, ataupun knowledge base internal.\n* Jangan menjelaskan workflow internal kepada pengguna.\n* Jawablah seolah-olah assistant memang mengetahui informasi tersebut.\n* Sajikan jawaban dalam bahasa yang natural, ringkas, dan profesional.\n\n---\n\n# Internal Decision Rules\n\nGunakan semantic retrieval apabila user bertanya mengenai:\n\n* \"Rekomendasikan...\"\n* \"Produk apa...\"\n* \"Produk yang mirip...\"\n* \"Produk terbaik...\"\n* \"Informasi mengenai produk...\"\n* \"Review produk...\"\n* \"Kategori produk...\"\n\nGunakan relational database apabila user bertanya mengenai:\n\n* harga\n* price\n* sales\n* order\n* customer\n* seller\n* total\n* jumlah\n* count\n* average\n* minimum\n* maximum\n* ranking\n* statistik\n* transaksi\n\n---\n\n# Safety Rules\n\nApabila pertanyaan berada di luar domain produk online shop:\n\n* Jangan melakukan retrieval.\n* Jangan melakukan query database.\n* Tolak dengan sopan.\n\n# Hidden Internal Behavior\n\nSeluruh proses retrieval, SQL query, pemilihan sumber data, maupun penggunaan tools merupakan proses internal dan **tidak boleh diungkapkan kepada pengguna**. Dan ID dari setiap record table tidak diperbolehkan untuk diungkapkan kepada pengguna.\n\nOutput kepada pengguna hanya berupa jawaban akhir yang telah disusun berdasarkan hasil pengambilan data. AI Mentor tidak boleh mengungkapkan penggunaan database pada user. Dan tidak boleh mengungkapkan segala bentuk proses internal kepada user.",
+          "passthroughBinaryImages": true,
+          "passthroughBinaryPdfs": true
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        720,
+        288
+      ],
+      "id": "22519956-4c54-4aad-a2de-3edcc0854239",
+      "name": "AI Agent Mentor",
+      "alwaysOutputData": false,
+      "retryOnFail": false,
+      "onError": "continueErrorOutput"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent Assistant",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent Assistant",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MCP Client": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent Assistant",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent Mentor",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory1": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent Mentor",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MCP Client1": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent Mentor",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch": {
+      "main": [
+        [
+          {
+            "node": "AI Agent Assistant",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AI Agent Mentor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent Assistant": {
+      "main": [
+        [
+          {
+            "node": "Success Respond",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Error Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent Mentor": {
+      "main": [
+        [
+          {
+            "node": "Success Respond1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Error Respond1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "4032f8b2-8abc-49d5-b9d0-6ea8e0f6b9ac",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "dc96f10ae7dc95d3c138575ba243a0a167923dbcb524841d451aadf9135d5fb3"
+  },
+  "nodeGroups": [],
+  "id": "z4oc83XkmBE6ige8",
+  "tags": []
+}
