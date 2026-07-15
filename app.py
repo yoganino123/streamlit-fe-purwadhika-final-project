@@ -3,14 +3,20 @@ import json
 import mimetypes
 import os
 import socket
+import tempfile
 import uuid
+from contextlib import contextmanager
 from html import escape
 from datetime import datetime
 from typing import Optional
 from urllib import error, request
 
+import bcrypt
+import pymysql
+import pymysql.err
 import streamlit as st
 import streamlit.components.v1 as components
+from dbutils.pooled_db import PooledDB
 from dotenv import load_dotenv
 
 
@@ -35,7 +41,7 @@ PERSONAS = {
         "suggestions": [
             "Rekomendasikan produk kategori rumah tangga dengan rating terbaik.",
             "Cari alternatif produk dengan review lebih tinggi.",
-            "Bandingkan dua produk dan jelaskan alasannya.",
+            "Bandingkan harga & rating produk yang sama di Olist vs Lazada.",
         ],
     },
     "seller": {
@@ -48,7 +54,7 @@ PERSONAS = {
         "suggestions": [
             "Tampilkan tren order 30 hari terakhir.",
             "Apa penyebab keterlambatan pengiriman minggu ini?",
-            "Berikan 3 aksi prioritas untuk meningkatkan performa operasional.",
+            "Bandingkan performa penjualan toko di Olist vs Lazada.",
         ],
     },
 }
@@ -81,8 +87,155 @@ WEBHOOK_URL = get_config_value("OLIST_CHAT_WEBHOOK_URL")
 WEBHOOK_TOKEN = get_config_value("OLIST_CHAT_WEBHOOK_TOKEN")
 DEFAULT_NAME = get_config_value("OLIST_CHAT_DEFAULT_NAME", "John Doe")
 DEFAULT_EMAIL = get_config_value("OLIST_CHAT_DEFAULT_EMAIL", "johndoemul@example.com")
-APP_USERNAME = get_config_value("OLIST_CHAT_APP_USERNAME", "admin")
-APP_PASSWORD = get_config_value("OLIST_CHAT_APP_PASSWORD", "admin123")
+APP_FOOTER_TEXT = get_config_value("OLIST_CHAT_FOOTER_TEXT", "🎓 Final Project — Purwadhika")
+
+# Bootstrap admin account: seeded into the `users` table on first run only (if the table is empty).
+BOOTSTRAP_ADMIN_USERNAME = get_config_value("OLIST_CHAT_APP_USERNAME", "admin")
+BOOTSTRAP_ADMIN_PASSWORD = get_config_value("OLIST_CHAT_APP_PASSWORD", "admin123")
+
+DB_HOST = get_config_value("DB_HOST")
+DB_PORT = get_config_value("DB_PORT", "3306")
+DB_USER = get_config_value("DB_USER")
+DB_PASSWORD = get_config_value("DB_PASSWORD")
+DB_NAME = get_config_value("DB_NAME")
+DB_SSL_CA = get_config_value("DB_SSL_CA")
+
+
+@st.cache_resource
+def get_ssl_ca_path() -> Optional[str]:
+    if not DB_SSL_CA:
+        return None
+    fd, path = tempfile.mkstemp(suffix=".pem")
+    with os.fdopen(fd, "w") as ca_file:
+        ca_file.write(DB_SSL_CA)
+    return path
+
+
+@st.cache_resource
+def get_db_pool() -> PooledDB:
+    if not (DB_HOST and DB_USER and DB_NAME):
+        raise RuntimeError("Konfigurasi database belum lengkap. Isi DB_HOST, DB_USER, DB_PASSWORD, DB_NAME di .env.")
+
+    ca_path = get_ssl_ca_path()
+    return PooledDB(
+        creator=pymysql,
+        mincached=1,
+        maxcached=5,
+        maxconnections=10,
+        blocking=True,
+        ping=1,  # cek koneksi tiap kali diambil dari pool; auto-reconnect kalau putus
+        host=DB_HOST,
+        port=int(DB_PORT or 3306),
+        user=DB_USER,
+        password=DB_PASSWORD,
+        database=DB_NAME,
+        ssl={"ca": ca_path} if ca_path else None,
+        cursorclass=pymysql.cursors.DictCursor,
+        connect_timeout=10,
+        autocommit=False,
+    )
+
+
+def get_db_connection():
+    try:
+        return get_db_pool().connection()
+    except pymysql.MySQLError as exc:
+        raise RuntimeError(f"Gagal terhubung ke database: {exc}") from exc
+
+
+@contextmanager
+def db_cursor():
+    conn = get_db_connection()
+    try:
+        with conn.cursor() as cur:
+            yield cur
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        # PooledDB: close() mengembalikan koneksi ke pool, bukan menutup socket-nya.
+        conn.close()
+
+
+@st.cache_resource
+def init_database() -> bool:
+    with db_cursor() as cur:
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS users (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                username VARCHAR(64) NOT NULL UNIQUE,
+                password_hash VARCHAR(255) NOT NULL,
+                name VARCHAR(128) NOT NULL,
+                email VARCHAR(255) NOT NULL,
+                role VARCHAR(32) NOT NULL DEFAULT 'user',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+        cur.execute("SELECT COUNT(*) AS c FROM users")
+        if cur.fetchone()["c"] == 0:
+            password_hash = bcrypt.hashpw(BOOTSTRAP_ADMIN_PASSWORD.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+            cur.execute(
+                "INSERT INTO users (username, password_hash, name, email, role) VALUES (%s, %s, %s, %s, %s)",
+                (BOOTSTRAP_ADMIN_USERNAME, password_hash, DEFAULT_NAME, DEFAULT_EMAIL, "admin"),
+            )
+    return True
+
+
+def authenticate_user(username: str, password: str) -> Optional[dict]:
+    with db_cursor() as cur:
+        cur.execute(
+            "SELECT id, username, password_hash, name, email, role FROM users WHERE username = %s",
+            (username,),
+        )
+        row = cur.fetchone()
+
+    if not row or not bcrypt.checkpw(password.encode("utf-8"), row["password_hash"].encode("utf-8")):
+        return None
+    return row
+
+
+def fetch_users() -> list[dict]:
+    with db_cursor() as cur:
+        cur.execute("SELECT id, username, name, email, role, created_at FROM users ORDER BY id")
+        return cur.fetchall()
+
+
+def count_admins() -> int:
+    with db_cursor() as cur:
+        cur.execute("SELECT COUNT(*) AS c FROM users WHERE role = 'admin'")
+        return cur.fetchone()["c"]
+
+
+def create_user(username: str, password: str, name: str, email: str, role: str) -> None:
+    password_hash = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+    with db_cursor() as cur:
+        cur.execute(
+            "INSERT INTO users (username, password_hash, name, email, role) VALUES (%s, %s, %s, %s, %s)",
+            (username, password_hash, name, email, role),
+        )
+
+
+def update_user(user_id: int, name: str, email: str, role: str, new_password: Optional[str] = None) -> None:
+    with db_cursor() as cur:
+        if new_password:
+            password_hash = bcrypt.hashpw(new_password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+            cur.execute(
+                "UPDATE users SET name = %s, email = %s, role = %s, password_hash = %s WHERE id = %s",
+                (name, email, role, password_hash, user_id),
+            )
+        else:
+            cur.execute(
+                "UPDATE users SET name = %s, email = %s, role = %s WHERE id = %s",
+                (name, email, role, user_id),
+            )
+
+
+def delete_user(user_id: int) -> None:
+    with db_cursor() as cur:
+        cur.execute("DELETE FROM users WHERE id = %s", (user_id,))
 
 
 def render_styles() -> None:
@@ -521,7 +674,7 @@ def render_styles() -> None:
         }
 
         .st-key-login_card {
-            max-width: 440px;
+            max-width: 620px;
             margin: 2.5rem auto 0 auto;
             padding: 2.2rem 2rem 1.6rem 2rem !important;
             border-radius: 24px !important;
@@ -591,6 +744,47 @@ def render_styles() -> None:
             border-color: rgba(139, 92, 246, 0.35);
         }
 
+        .platform-badges {
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 0.45rem;
+            margin: 0.1rem 0 0.9rem 0;
+        }
+
+        .platform-badges.align-left {
+            justify-content: flex-start;
+        }
+
+        .platform-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+            padding: 0.28rem 0.7rem;
+            border-radius: 999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            border: 1px solid transparent;
+        }
+
+        .platform-badge.olist {
+            background: rgba(16, 185, 129, 0.12);
+            color: #6ee7b7;
+            border-color: rgba(16, 185, 129, 0.35);
+        }
+
+        .platform-badge.lazada {
+            background: rgba(249, 115, 22, 0.14);
+            color: #fdba74;
+            border-color: rgba(249, 115, 22, 0.35);
+        }
+
+        .platform-badge.compare {
+            background: rgba(139, 92, 246, 0.12);
+            color: #c4b5fd;
+            border-color: rgba(139, 92, 246, 0.35);
+        }
+
         .st-key-login_card [data-testid="stTextInputRootElement"] {
             background: rgba(15, 23, 42, 0.85) !important;
             border-radius: 12px !important;
@@ -614,6 +808,49 @@ def render_styles() -> None:
             font-size: 0.78rem;
             margin-top: 1rem;
         }
+
+        .app-footer {
+            color: var(--text-soft);
+            font-size: 0.75rem;
+            line-height: 1.4;
+            margin-top: 0.5rem;
+        }
+
+        .message-actions [data-testid="stHorizontalBlock"] {
+            align-items: center;
+            gap: 0.25rem;
+        }
+
+        @media (max-width: 640px) {
+            .block-container {
+                padding-left: 1rem;
+                padding-right: 1rem;
+            }
+
+            .app-header-badge {
+                width: 42px;
+                height: 42px;
+                font-size: 1.3rem;
+            }
+
+            .app-header-title {
+                font-size: 1.4rem;
+            }
+
+            .app-header-subtitle {
+                font-size: 0.85rem;
+            }
+
+            .welcome-card {
+                padding: 1.1rem 1.2rem;
+            }
+
+            .st-key-login_card {
+                max-width: 100%;
+                margin: 1rem auto 0 auto;
+                padding: 1.6rem 1.3rem 1.2rem 1.3rem !important;
+            }
+        }
         </style>
         """,
         unsafe_allow_html=True,
@@ -629,17 +866,42 @@ def initialize_state() -> None:
         st.session_state.name = DEFAULT_NAME
     if "email" not in st.session_state:
         st.session_state.email = DEFAULT_EMAIL
+    if "role" not in st.session_state:
+        st.session_state.role = "user"
+    if "view" not in st.session_state:
+        st.session_state.view = "chat"
+
+
+def reset_session() -> None:
+    for key in (
+        "authenticated",
+        "user_id",
+        "username",
+        "name",
+        "email",
+        "role",
+        "view",
+        "chat_history",
+        "active_persona",
+        "editing_user_id",
+    ):
+        st.session_state.pop(key, None)
 
 
 def render_login() -> None:
-    _, center, _ = st.columns([1, 1.3, 1])
+    _, center, _ = st.columns([1, 2.2, 1])
     with center:
         with st.container(key="login_card", border=True):
             st.markdown(
                 """
                 <div class="login-badge">🤖</div>
                 <div class="login-title">Olist Copilot</div>
-                <p class="login-subtitle">Asisten AI belanja &amp; bisnis Olist</p>
+                <p class="login-subtitle">Asisten AI belanja &amp; bisnis — kini dengan data Olist &amp; Lazada</p>
+                <div class="platform-badges">
+                    <span class="platform-badge olist">🟢 Olist</span>
+                    <span class="platform-badge lazada">🛍️ Lazada</span>
+                    <span class="platform-badge compare">🔀 Perbandingan</span>
+                </div>
                 <div class="login-chips">
                     <span class="persona-chip accent-buyer">🛒 Buyer</span>
                     <span class="persona-chip accent-seller">🏬 Seller</span>
@@ -654,11 +916,26 @@ def render_login() -> None:
                 submitted = st.form_submit_button("Masuk →", use_container_width=True)
 
             if submitted:
-                if username == APP_USERNAME and password == APP_PASSWORD:
-                    st.session_state.authenticated = True
-                    st.rerun()
+                if not username.strip() or not password:
+                    st.error("Username dan password wajib diisi.")
                 else:
-                    st.error("Username atau password salah.")
+                    try:
+                        with st.spinner("Memeriksa kredensial..."):
+                            user = authenticate_user(username.strip(), password)
+                    except RuntimeError as exc:
+                        user = None
+                        st.error(str(exc))
+                    else:
+                        if user:
+                            st.session_state.authenticated = True
+                            st.session_state.user_id = user["id"]
+                            st.session_state.username = user["username"]
+                            st.session_state.name = user["name"]
+                            st.session_state.email = user["email"]
+                            st.session_state.role = user["role"]
+                            st.rerun()
+                        else:
+                            st.error("Username atau password salah.")
 
             st.markdown(
                 '<p class="login-footer">🔒 Akses terbatas — hubungi admin untuk kredensial.</p>',
@@ -747,9 +1024,73 @@ def render_attachment_widget(attachment: dict) -> None:
     )
 
 
-def render_user_bubble(question: str, persona: str, attachment: Optional[dict] = None) -> None:
+def normalize_kpi(kpi: object) -> tuple[str, str, str]:
+    if isinstance(kpi, dict):
+        label = str(kpi.get("label", kpi.get("name", "")))
+        value = str(kpi.get("value", ""))
+        delta = str(kpi.get("delta", kpi.get("change", "")))
+        return label, value, delta
+    if isinstance(kpi, (list, tuple)):
+        parts = list(kpi) + ["", "", ""]
+        return str(parts[0]), str(parts[1]), str(parts[2])
+    return str(kpi), "", ""
+
+
+def render_kpis(kpis: list) -> None:
+    if not kpis:
+        return
+    st.caption("📊 KPI")
+    columns = st.columns(len(kpis))
+    for column, kpi in zip(columns, kpis):
+        label, value, delta = normalize_kpi(kpi)
+        with column:
+            st.metric(label, value, delta or None)
+
+
+def render_sources(sources: list) -> None:
+    if not sources:
+        return
+    with st.expander(f"📚 Referensi ({len(sources)})"):
+        for source in sources:
+            st.markdown(f"- {source}")
+
+
+def render_message_actions(answer_text: str, key: str) -> None:
+    with st.container(key=f"actions_{key}"):
+        st.markdown('<div class="message-actions">', unsafe_allow_html=True)
+        components.html(
+            f"""
+            <style>
+              button {{
+                background: rgba(15, 23, 42, 0.85);
+                border: 1px solid rgba(255, 255, 255, 0.14);
+                color: #c0cad8;
+                border-radius: 8px;
+                padding: 4px 10px;
+                font-size: 12px;
+                cursor: pointer;
+                font-family: "Plus Jakarta Sans", sans-serif;
+              }}
+              button:hover {{ border-color: #10b981; color: #f3f4f6; }}
+            </style>
+            <button onclick="copyAnswer(this)">📋 Salin</button>
+            <script>
+              function copyAnswer(btn) {{
+                navigator.clipboard.writeText({json.dumps(answer_text)});
+                const original = btn.innerText;
+                btn.innerText = "✅ Tersalin";
+                setTimeout(() => {{ btn.innerText = original; }}, 1500);
+              }}
+            </script>
+            """,
+            height=32,
+        )
+        st.markdown("</div>", unsafe_allow_html=True)
+
+
+def render_user_bubble(question: str, attachment: Optional[dict] = None) -> None:
     with st.chat_message("user", avatar="🙋"):
-        st.caption(persona_label(persona))
+        st.caption(st.session_state.name)
         st.write(question)
 
         if attachment:
@@ -776,7 +1117,7 @@ def process_question(question: str, persona: str, uploaded_files: Optional[list[
 
     attachment = build_attachment(uploaded_files)
 
-    render_user_bubble(question, persona, attachment=attachment)
+    render_user_bubble(question, attachment=attachment)
     render_loading_bubble(persona)
 
     try:
@@ -901,20 +1242,59 @@ def render_sidebar() -> None:
         """,
         unsafe_allow_html=True,
     )
-    st.sidebar.caption("Satu AI, dua peran: bantu Anda belanja atau kelola toko.")
+    st.sidebar.caption("Satu AI, dua peran, dua marketplace: Olist & Lazada.")
+
+    st.sidebar.markdown(
+        """
+        <div class="platform-badges align-left">
+            <span class="platform-badge olist">🟢 Olist</span>
+            <span class="platform-badge lazada">🛍️ Lazada</span>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    st.sidebar.markdown(
+        f'<p class="app-footer">👤 {escape(st.session_state.name)}'
+        f'<br/>✉️ {escape(st.session_state.email)}</p>',
+        unsafe_allow_html=True,
+    )
 
     with st.sidebar.expander("ℹ️ Tentang aplikasi", expanded=True):
         st.markdown(
             "- 🛒 **Buyer** — rekomendasi produk, perbandingan, dan alasan pemilihannya.\n"
             "- 🏬 **Seller** — insight KPI, tren order, dan aksi prioritas toko.\n"
+            "- 🟢🛍️ **Dua marketplace** — data mencakup **Olist** dan **Lazada**, termasuk "
+            "**perbandingan** performa antar keduanya.\n"
             "- 📎 Bisa lampirkan **gambar** (JPG/PNG/WEBP) atau **PDF** saat bertanya, "
             "klik ikon **＋** di sebelah kotak chat."
         )
 
     st.sidebar.divider()
+
+    if st.session_state.role == "admin":
+        if st.session_state.view == "admin":
+            if st.sidebar.button("💬 Kembali ke Chat", use_container_width=True):
+                st.session_state.view = "chat"
+                st.rerun()
+        else:
+            if st.sidebar.button("🛠️ Kelola User", use_container_width=True):
+                st.session_state.view = "admin"
+                st.rerun()
+
+    if st.session_state.view == "chat" and st.session_state.chat_history:
+        if st.sidebar.button("🆕 Chat Baru", use_container_width=True):
+            st.session_state.chat_history = []
+            st.rerun()
+
     if st.sidebar.button("🚪 Keluar", use_container_width=True):
-        st.session_state.authenticated = False
+        reset_session()
         st.rerun()
+
+    # st.sidebar.markdown(
+    #     f'<p class="app-footer">{APP_FOOTER_TEXT}</p>',
+    #     unsafe_allow_html=True,
+    # )
 
 
 def render_persona_switcher() -> str:
@@ -969,6 +1349,15 @@ def render_welcome_card(persona: str) -> None:
                 <div class="welcome-title">Halo, saya {info['label']} Copilot</div>
             </div>
             <p class="welcome-text">{info['description']}</p>
+            <div class="platform-badges align-left">
+                <span class="platform-badge olist">🟢 Olist</span>
+                <span class="platform-badge lazada">🛍️ Lazada</span>
+                <span class="platform-badge compare">🔀 Perbandingan</span>
+            </div>
+            <p class="welcome-hint">
+                🔀 Data mencakup dua marketplace: <strong>Olist</strong> dan <strong>Lazada</strong> —
+                Anda bisa bertanya soal salah satunya atau minta perbandingan keduanya.
+            </p>
             <p class="welcome-hint">
                 📎 Anda juga bisa melampirkan <strong>gambar</strong> (JPG, PNG, WEBP) atau
                 <strong>PDF</strong> saat bertanya — klik ikon <strong>＋</strong> di sebelah kotak chat.
@@ -984,31 +1373,166 @@ def render_chat(persona: str) -> None:
         render_welcome_card(persona)
         return
 
-    for entry in st.session_state.chat_history:
+    for index, entry in enumerate(st.session_state.chat_history):
         entry_persona = entry.get("persona", persona)
         attachment = entry.get("attachment")
         icon = PERSONAS.get(entry_persona, {}).get("icon", "🤖")
 
-        render_user_bubble(entry["question"], entry_persona, attachment=attachment)
+        render_user_bubble(entry["question"], attachment=attachment)
 
         with st.chat_message("assistant", avatar=icon):
             st.caption(f"{persona_label(entry_persona)} • {entry['timestamp']} • {entry['mode']}")
             st.write(entry["answer"])
+            render_kpis(entry.get("kpis") or [])
+            render_sources(entry.get("sources") or [])
             if entry["recommendations"]:
                 st.write("Rekomendasi")
                 for item in entry["recommendations"]:
                     st.markdown(f"- {item}")
+            render_message_actions(entry["answer"], key=str(index))
+
+
+def render_admin_page() -> None:
+    st.markdown(
+        """
+        <div class="app-header">
+            <div class="app-header-badge">🛠️</div>
+            <div>
+                <div class="app-header-title">Kelola User</div>
+                <div class="app-header-subtitle">Tambah, ubah, atau hapus akun pengguna aplikasi ini.</div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    try:
+        with st.spinner("Memuat daftar user..."):
+            users = fetch_users()
+    except RuntimeError as exc:
+        st.error(str(exc))
+        return
+
+    st.subheader("➕ Tambah User Baru")
+    with st.form("create_user_form", clear_on_submit=True):
+        col1, col2 = st.columns(2)
+        with col1:
+            new_username = st.text_input("Username")
+            new_name = st.text_input("Nama")
+        with col2:
+            new_password = st.text_input("Password", type="password")
+            new_email = st.text_input("Email")
+        new_role = st.selectbox("Role", options=["user", "admin"])
+        create_submitted = st.form_submit_button("Tambah User", use_container_width=True)
+
+    if create_submitted:
+        if not (new_username.strip() and new_password and new_name.strip() and new_email.strip()):
+            st.error("Semua field wajib diisi.")
+        else:
+            try:
+                with st.spinner("Menyimpan user baru..."):
+                    create_user(new_username.strip(), new_password, new_name.strip(), new_email.strip(), new_role)
+            except pymysql.err.IntegrityError:
+                st.error("Username sudah dipakai, gunakan username lain.")
+            except RuntimeError as exc:
+                st.error(str(exc))
+            else:
+                st.success(f"User '{new_username}' berhasil dibuat.")
+                st.rerun()
+
+    st.divider()
+    st.subheader(f"👥 Daftar User ({len(users)})")
+
+    if not users:
+        st.info("Belum ada user.")
+        return
+
+    for user in users:
+        with st.container(border=True):
+            cols = st.columns([3, 3, 2, 3])
+            cols[0].markdown(f"**{user['username']}**  \n{user['name']}")
+            cols[1].markdown(user["email"])
+            cols[2].markdown(f"`{user['role']}`")
+            with cols[3]:
+                edit_col, delete_col = st.columns(2)
+                if edit_col.button("✏️ Edit", key=f"edit_{user['id']}", use_container_width=True):
+                    st.session_state.editing_user_id = user["id"]
+                    st.rerun()
+                if delete_col.button("🗑️ Hapus", key=f"delete_{user['id']}", use_container_width=True):
+                    with st.spinner("Menghapus user..."):
+                        if user["id"] == st.session_state.user_id:
+                            st.error("Tidak bisa menghapus akun Anda sendiri.")
+                        elif user["role"] == "admin" and count_admins() <= 1:
+                            st.error("Tidak bisa menghapus admin terakhir.")
+                        else:
+                            try:
+                                delete_user(user["id"])
+                            except RuntimeError as exc:
+                                st.error(str(exc))
+                            else:
+                                st.success(f"User '{user['username']}' dihapus.")
+                                st.rerun()
+
+            if st.session_state.get("editing_user_id") == user["id"]:
+                with st.form(f"edit_form_{user['id']}"):
+                    edit_name = st.text_input("Nama", value=user["name"])
+                    edit_email = st.text_input("Email", value=user["email"])
+                    edit_role = st.selectbox(
+                        "Role", options=["user", "admin"], index=["user", "admin"].index(user["role"])
+                    )
+                    edit_password = st.text_input("Password baru (kosongkan jika tidak diubah)", type="password")
+                    save_col, cancel_col = st.columns(2)
+                    save_submitted = save_col.form_submit_button("💾 Simpan", use_container_width=True)
+                    cancel_submitted = cancel_col.form_submit_button("Batal", use_container_width=True)
+
+                if save_submitted:
+                    if not (edit_name.strip() and edit_email.strip()):
+                        st.error("Nama dan email wajib diisi.")
+                    else:
+                        try:
+                            with st.spinner("Menyimpan perubahan..."):
+                                update_user(
+                                    user["id"],
+                                    edit_name.strip(),
+                                    edit_email.strip(),
+                                    edit_role,
+                                    edit_password or None,
+                                )
+                        except RuntimeError as exc:
+                            st.error(str(exc))
+                        else:
+                            if user["id"] == st.session_state.user_id:
+                                st.session_state.name = edit_name.strip()
+                                st.session_state.email = edit_email.strip()
+                                st.session_state.role = edit_role
+                            st.session_state.editing_user_id = None
+                            st.success("User berhasil diperbarui.")
+                            st.rerun()
+                if cancel_submitted:
+                    st.session_state.editing_user_id = None
+                    st.rerun()
 
 
 def main() -> None:
     initialize_state()
     render_styles()
 
+    try:
+        with st.spinner("Menyiapkan aplikasi..."):
+            init_database()
+    except RuntimeError as exc:
+        st.error(str(exc))
+        return
+
     if not st.session_state.authenticated:
         render_login()
         return
 
     render_sidebar()
+
+    if st.session_state.role == "admin" and st.session_state.view == "admin":
+        render_admin_page()
+        return
 
     st.markdown(
         """
@@ -1018,9 +1542,15 @@ def main() -> None:
                 <div class="app-header-title">Olist Copilot</div>
                 <div class="app-header-subtitle">
                     Asisten AI yang membantu Anda sebagai <strong>Buyer</strong> (pembeli)
-                    maupun <strong>Seller</strong> (penjual) di Olist.
+                    maupun <strong>Seller</strong> (penjual) — mencakup data dari
+                    <strong>Olist</strong> dan <strong>Lazada</strong>, termasuk perbandingan keduanya.
                 </div>
             </div>
+        </div>
+        <div class="platform-badges align-left">
+            <span class="platform-badge olist">🟢 Olist</span>
+            <span class="platform-badge lazada">🛍️ Lazada</span>
+            <span class="platform-badge compare">🔀 Bisa dibandingkan</span>
         </div>
         """,
         unsafe_allow_html=True,
