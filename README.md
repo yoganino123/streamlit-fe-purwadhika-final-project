@@ -7,12 +7,15 @@ w
 1. Buat virtual environment:
 
    python3 -m venv .venv
+
 2. Aktifkan virtual environment:
 
    source .venv/bin/activate
+
 3. Install dependencies:
 
    python -m pip install -r requirements.txt
+
 4. Jalankan app:
 
    streamlit run app.py
@@ -22,12 +25,15 @@ w
 1. Buat virtual environment:
 
    py -m venv .venv
+
 2. Aktifkan virtual environment:
 
    .venv\Scripts\activate
+
 3. Install dependencies:
 
    python -m pip install -r requirements.txt
+
 4. Jalankan app:
 
    streamlit run app.py
@@ -47,12 +53,12 @@ w
 6. Copy isi [`.streamlit/secrets.toml.example`](.streamlit/secrets.toml.example) ke Secrets Streamlit Cloud:
 
    ```toml
-   OLIST_CHAT_WEBHOOK_URL = "https://..."
+   OLIST_CHAT_WEBHOOK_URL = "..."
    OLIST_CHAT_WEBHOOK_TOKEN = "..."
-   OLIST_CHAT_DEFAULT_NAME = "John Doe"
-   OLIST_CHAT_DEFAULT_EMAIL = "johndoemul@example.com"
-   OLIST_CHAT_APP_USERNAME = "admin"
-   OLIST_CHAT_APP_PASSWORD = "admin123"
+   OLIST_CHAT_DEFAULT_NAME = "..."
+   OLIST_CHAT_DEFAULT_EMAIL = "..."
+   OLIST_CHAT_APP_USERNAME = "..."
+   OLIST_CHAT_APP_PASSWORD = "..."
 
    DB_HOST = "..."
    DB_PORT = "3306"
@@ -68,9 +74,9 @@ Catatan: di Streamlit Cloud, credential lebih aman disimpan di Secrets daripada 
 
 ## Login & Manajemen User (MySQL)
 
-Login memakai tabel `users` di database MySQL (dibuat otomatis saat app pertama kali jalan, lewat `init_database()` di [app.py](app.py)). Kolom: `username`, `password_hash` (bcrypt), `name`, `email`, `role` (`user`/`admin`).
+Login memakai tabel internal di database MySQL (dibuat otomatis saat app pertama kali jalan, lewat `init_database()` di [app.py](app.py)). Password disimpan dalam bentuk hash yang aman, tidak pernah plaintext.
 
 - **Env var wajib**: `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`. Kalau DB pakai SSL (mis. Aiven), isi juga `DB_SSL_CA` dengan isi certificate CA (format PEM, boleh multi-baris).
-- **Akun admin awal**: kalau tabel `users` masih kosong, satu akun admin otomatis dibuat dari `OLIST_CHAT_APP_USERNAME` / `OLIST_CHAT_APP_PASSWORD` (default `admin` / `admin123`) — pakai ini untuk login pertama kali, lalu ganti passwordnya lewat halaman **🛠️ Kelola User**.
+- **Akun admin awal**: kalau tabel user masih kosong, satu akun admin otomatis dibuat dari env var `OLIST_CHAT_APP_USERNAME` / `OLIST_CHAT_APP_PASSWORD` (jangan gunakan nilai default/contoh untuk production) — pakai ini untuk login pertama kali, lalu segera ganti passwordnya lewat halaman **🛠️ Kelola User**.
 - **Halaman admin**: user dengan role `admin` akan melihat tombol "🛠️ Kelola User" di sidebar untuk create/edit/delete user lain. Admin tidak bisa menghapus akunnya sendiri atau menghapus admin terakhir yang tersisa.
-- **Payload ke n8n**: field `name` dan `email` yang dikirim ke webhook otomatis mengikuti akun yang sedang login (bukan lagi nilai statis).
+- **Payload ke n8n**: field `name` dan `email` yang dikirim ke webhook otomatis mengikuti akun yang sedang login.
