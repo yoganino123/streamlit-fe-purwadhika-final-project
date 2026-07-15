@@ -1,41 +1,23 @@
 import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
 import mysql from "mysql2/promise";
+import dotenv from "dotenv";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+dotenv.config({ path: path.resolve(__dirname, "../.env") });
 
 // Database connection configuration
 const dbConfig = {
-  host: "mysql-olist-db-yoganinorahardian-acf4.h.aivencloud.com",
-  port: 27518,
-  user: "avnadmin",
-  password: "AVNS_veszJ1_IVpGLJ_IbS6q",
-  database: "olist_db",
+  host: process.env.DB_HOST,
+  port: Number(process.env.DB_PORT),
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME,
   ssl: {
-    mode: "REQUIRED",
-    ca: `-----BEGIN CERTIFICATE-----
-MIIERDCCAqygAwIBAgIUF4yoGgJAPecBv4GGPPFp6x89nRkwDQYJKoZIhvcNAQEM
-BQAwOjE4MDYGA1UEAwwvOTJkZGE0NDUtZmUxNy00NTk5LTgzY2QtMWE5MmNmNWE1
-ZjI0IFByb2plY3QgQ0EwHhcNMjYwNjI1MDMzNjEyWhcNMzYwNjIyMDMzNjEyWjA6
-MTgwNgYDVQQDDC85MmRkYTQ0NS1mZTE3LTQ1OTktODNjZC0xYTkyY2Y1YTVmMjQg
-UHJvamVjdCBDQTCCAaIwDQYJKoZIhvcNAQEBBQADggGPADCCAYoCggGBAKIT7WAg
-Hoj284UWZylLa53zD68ibFcCW/n5wCLx0U41uan/Z9S0QC2YQbkayZHmJYjsQEc2
-S8Bg89oNzdROI51pODEBogMQI1U86xX6G+ibno0hVLElbv0W4INO5Ppm3Z9wWbKP
-tHuC7VS7xtTBVpg2sHR05Ix6W7yMPoFUbXyP4y8HPiDH86SQj8qmDOzMY21JrPIv
-qL46BqRMC/il/y66rNHbKnnvN41hUfk1l5+2wbxdrn7+MjBHKbMtdQKBMbhT5cIP
-QQDDEj6VFZ5EOkGeC9TTXtNt3kROd0yKYecVxnPtADhqZo/VqcAKyO8c2Jmhcaq1
-fpgeDov9zgdY7UnVtX91TekUS3ZWbhaBHbrJXQ1btv8zTLcTOm/Oi7PP909TyLh2
-5M9aUBT2cfizO0DXYOSY1FmOEnNcwt4XChiplIxjZGBzaDY093yyUrEtt4cJYcK9
-tlWixx7VOk3XVW+y0PLPvyHAFYFlQjzzANQ8PA8NcMc/Pl+2ijnd9A1KqQIDAQAB
-o0IwQDAdBgNVHQ4EFgQUG5SfZReRx8E0H+aY3rplxhDcE5gwEgYDVR0TAQH/BAgw
-BgEB/wIBADALBgNVHQ8EBAMCAQYwDQYJKoZIhvcNAQEMBQADggGBABe4eOjN2L0/
-Pyk6VD/hq0PRbudk2FMIvlI9kIcNIgWEGs+euTQlKGqoEne+7lA5e0kPuhsOIC+k
-KeBlJ03EuhWp+P1RD2CCzGU7/hx1OG2L06insSzTUQsqt+B93ygdJcN+aP+hVLZi
-w1EF1271nGyoTFtLP1rYCzfC+K1OcJwJ4pKFK2I6ICi/cAMMOqmyFaa9eAVuOLGy
-qdG5fWxhnyeGWSYSzmUzaVdJn3aLwXq4F68AF0EtpEFl12rUsx4W78yXQrodu0OU
-SqSCXo+WxtDBiwKxGyIDhhaq/3/mlois/DqTAI2XXM8KtJiM9Y3/bhmPzKHOpZ0U
-E41240GWcwQ52ou/4x+Rx1NbRHqg7aDvL5682ba4bJmfxX0IDVuHxYd7awmvrRq0
-CSFJc4vb0IF/fST6vyA7tf8u/3MrffINBqmMqOelrPxVJZnnQR+0mWQwY9jDYB42
-5oS0k0kmLkNmLSdleUkP+gFRvQZLJIUiW3Km2EtXuKw3kR5KQgq21g==
------END CERTIFICATE-----`
-  }
+    mode: process.env.DB_SSL_MODE,
+    ca: process.env.DB_SSL_CA,
+  },
 };
 
 // Database connection variable
